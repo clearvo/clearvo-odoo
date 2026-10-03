@@ -215,7 +215,7 @@ class AccountMove(models.Model):
                 peppol_endpoint_id=company.partner_id.clearvo_peppol_endpoint_id,
                 peppol_scheme_id=company.partner_id.clearvo_peppol_scheme_id,
             ),
-            'buyer': self._clearvo_build_party(
+            'customer': self._clearvo_build_party(
                 name=partner.name,
                 vat=partner.vat,
                 address_partner=partner,
@@ -261,13 +261,15 @@ class AccountMove(models.Model):
             party['address']['postalCode'] = address_partner.zip
         if vat:
             party['taxId'] = vat
-            party['taxIdCountry'] = country_code
+            party['establishmentCountry'] = country_code
 
         # Send an explicit Peppol endpoint only when the user has configured one.
-        # Otherwise omit it — the Clearvo backend derives it from taxId + taxIdCountry.
+        # Otherwise omit it — the Clearvo backend derives it from taxId + establishmentCountry.
         if peppol_endpoint_id and peppol_scheme_id:
-            party['endpointId'] = peppol_endpoint_id
-            party['endpointSchemeId'] = peppol_scheme_id
+            party['electronicAddress'] = {
+                'value': peppol_endpoint_id,
+                'schemeId': peppol_scheme_id,
+            }
 
         if contact_name or contact_phone or contact_email:
             party['contact'] = {}
@@ -295,7 +297,7 @@ class AccountMove(models.Model):
                 'taxCode': tax_code,
             }
             if vat_rate is not None:
-                entry['vatRate'] = vat_rate
+                entry['taxRate'] = vat_rate
             if line.discount:
                 entry['discountPercent'] = line.discount
             if line.product_id and line.product_id.default_code:
