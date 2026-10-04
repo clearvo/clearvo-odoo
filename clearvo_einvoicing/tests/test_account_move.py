@@ -84,7 +84,7 @@ class TestClearvoAccountMove(TransactionCase):
         invoice = self._make_invoice()
         payload = invoice._clearvo_build_payload()
         for field in ('documentType', 'invoiceNumber', 'issueDate', 'currency',
-                      'country', 'supplier', 'buyer', 'lines'):
+                      'country', 'supplier', 'customer', 'lines'):
             self.assertIn(field, payload, f'Payload missing field: {field}')
 
     def test_payload_document_type_invoice(self):
@@ -101,18 +101,20 @@ class TestClearvoAccountMove(TransactionCase):
         self.assertEqual(supplier['name'], self.company.name)
         self.assertEqual(supplier['taxId'], self.company.vat)
 
-    def test_payload_buyer_from_partner(self):
+    def test_payload_customer_from_partner(self):
         invoice = self._make_invoice()
-        buyer = invoice._clearvo_build_payload()['buyer']
+        buyer = invoice._clearvo_build_payload()['customer']
         self.assertEqual(buyer['name'], self.partner.name)
         self.assertEqual(buyer['taxId'], self.partner.vat)
+        self.assertEqual(buyer['establishmentCountry'], self.partner.country_id.code)
+        self.assertNotIn('taxIdCountry', buyer)
 
     def test_payload_line_tax_code(self):
         invoice = self._make_invoice()
         lines = invoice._clearvo_build_payload()['lines']
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0]['taxCode'], 'S')
-        self.assertAlmostEqual(lines[0]['vatRate'], 21.0)
+        self.assertAlmostEqual(lines[0]['taxRate'], 21.0)
 
     def test_explicit_peppol_endpoint_included(self):
         self.partner.write({
@@ -120,17 +122,18 @@ class TestClearvoAccountMove(TransactionCase):
             'clearvo_peppol_scheme_id': '0088',
         })
         invoice = self._make_invoice()
-        buyer = invoice._clearvo_build_payload()['buyer']
-        self.assertEqual(buyer.get('endpointId'), '12345678')
-        self.assertEqual(buyer.get('endpointSchemeId'), '0088')
+        buyer = invoice._clearvo_build_payload()['customer']
+        self.assertEqual(buyer.get('electronicAddress'), {'value': '12345678', 'schemeId': '0088'})
+        self.assertNotIn('endpointId', buyer)
+        self.assertNotIn('endpointSchemeId', buyer)
         # cleanup
         self.partner.write({'clearvo_peppol_endpoint_id': False, 'clearvo_peppol_scheme_id': False})
 
     def test_no_peppol_endpoint_when_not_set(self):
         self.partner.write({'clearvo_peppol_endpoint_id': False, 'clearvo_peppol_scheme_id': False})
         invoice = self._make_invoice()
-        buyer = invoice._clearvo_build_payload()['buyer']
-        self.assertNotIn('endpointId', buyer)
+        buyer = invoice._clearvo_build_payload()['customer']
+        self.assertNotIn('electronicAddress', buyer)
 
     # ── Tax resolution ────────────────────────────────────────────────────────
 
